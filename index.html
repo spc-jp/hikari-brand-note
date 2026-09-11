@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HIKARI Brand Note（かんたん投稿）</title>
+    <link rel="icon" href="https://spc-jp.github.io/cl-hikari-v1/favicon.png" type="image/png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: { extend: { colors: { hikari: {
+                base: '#EAEFF3', text: '#4b5563', accent: '#C11E2D'
+            } } } }
+        }
+    </script>
+    <style>
+        body { background: #EAEFF3; }
+        .fade { animation: fade .4s ease-out; }
+        @keyframes fade { from { opacity:0; transform: translateY(6px);} to {opacity:1; transform:none;} }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        /* ==========================================================
+           ▼ 社内サーバーにアップした画像を、ここに登録します ▼
+           運用時は url をお客様の社内サーバーのアドレスに差し替えるだけ。
+           ここに無い画像は選べません（外部URL・端末アップロードは不可）。
+           ========================================================== */
+        const REGISTERED_IMAGES = [
+            { id:'hq_ext',   group:'本社', name:'本社 外観',      url:'https://placehold.co/600x400/EAEFF3/626262?text=HQ+Exterior' },
+            { id:'hq_office',group:'本社', name:'オフィス風景',    url:'https://placehold.co/600x400/EAEFF3/626262?text=Office' },
+            { id:'fac_line', group:'工場', name:'製造ライン',      url:'https://placehold.co/600x400/EAEFF3/626262?text=Production+Line' },
+            { id:'fac_qc',   group:'工場', name:'品質管理室',      url:'https://placehold.co/600x400/EAEFF3/626262?text=QC+Lab' },
+            { id:'logo',     group:'その他', name:'ブランドロゴ',   url:'https://placehold.co/600x400/EAEFF3/C11E2D?text=HIKARI' },
+        ];
+
+        // ① いつ
+        const WHENS = [
+            { v:'season',      label:'いつもの投稿（季節のあいさつ）' },
+            { v:'anniversary', label:'記念・節目（創業90周年など）' },
+            { v:'notice',      label:'お知らせ（休暇・変更など）' },
+            { v:'none',        label:'特になし' },
+        ];
+        const SEASON_LINE = {
+            1:'新春を迎え、気持ちも新たに。', 2:'春の足音が近づく季節に。',
+            3:'日差しがやわらぐ、春の入り口。', 4:'桜の季節、新しい出会いとともに。',
+            5:'新緑がまぶしい季節に。', 6:'雨に紫陽花が映える季節。',
+            7:'夏空が広がる季節に。', 8:'夏本番、暑さに負けず。',
+            9:'秋の気配を感じる頃。', 10:'木々が色づく季節に。',
+            11:'少し肌寒くなってきました。', 12:'一年の締めくくりに、感謝を込めて。'
+        };
+
+        // ② だれに
+        const AUDIENCES = [
+            { v:'general', label:'一般の方',           short:'まっすぐ、やさしく、医療と人をつなぐ。',    tag:'#企業文化' },
+            { v:'patient', label:'患者様・ご家族',       short:'知って安心、届けたいのは“やさしさ”です。',  tag:'#健康情報' },
+            { v:'medical', label:'医療関係者',          short:'現場に“安心”を。確かな情報を、すぐ手元に。', tag:'#医療' },
+            { v:'recruit', label:'採用候補の方',        short:'“医療のヒカリ”を、未来へ紡ぐあなたへ。',    tag:'#採用' },
+            { v:'partner', label:'取引先・パートナー',    short:'“つくる力”を、医薬品開発に活かしませんか？', tag:'#ものづくり' },
+            { v:'csr',     label:'地域・社会の方',       short:'地域と共に、健やかな未来を育む。',          tag:'#地域貢献' },
+        ];
+
+        // ③ なにを（テンプレ）
+        const TEMPLATES = [
+            { label:'自由に書く（テンプレを使わない）', value:'' },
+            { label:'A) 創業90周年（一般・感謝）', value:'【おかげさまで創業90周年】\n光製薬は、本年で創業90周年を迎えました。\n\n「まっすぐ、やさしく、医療と人をつなぐ。」\nこの想いを胸に、時代の変化とともに歩みを進めてまいりました。\nこれまで支えてくださった皆様に、心より深く感謝申し上げます。' },
+            { label:'B) 創業90周年（患者様・ご家族向け）', value:'【90年分の感謝と、これからの安心を】\n光製薬は、本年で創業90周年を迎えました。\n\n「薬を待つ人の不安を、少しでも和らげたい」。\nその一心で、私たちは90年間、一つひとつの命と向き合い続けてきました。\nこれからも、皆様の健やかな毎日に寄り添い続けます。' },
+            { label:'C) 創業90周年（採用・次なる挑戦）', value:'【90年の歴史は、次なる挑戦のスタートライン】\nおかげさまで、光製薬は創業90周年を迎えました。\n\nここまで歩んでこられたのは、絶え間ない技術革新と、社員一人ひとりの熱意があったから。\nそして今、私たちは100年企業、その先の未来を見据えています。' },
+            { label:'D) 創業90周年（地域・社会への貢献）', value:'【地域と共に歩んだ90年、そして未来へ】\n光製薬は本年、創業90周年という節目を迎えました。\n\nこの地で事業を続けてこられたのは、地域の皆様の温かいご支援のおかげです。\nこれからも、地域と共に歩み、共に成長する企業であり続けます。' },
+            { label:'E) Vision2030（未来宣言）', value:'【Vision2030：未来への羅針盤】\n2030年に向けた全社プロジェクトが、熱を帯びてきました。\n\n「医療の未来を支える、確かな光になる」。\n10年後の誰かの笑顔のために、今日、確かな一歩を踏み出します。' },
+            { label:'F) 新ライン立ち上げ準備', value:'【新ライン、始動へのカウントダウン】\nRTU（Ready-To-Use）ラインの稼働に向け、最終調整が大詰めを迎えています。\n\n「もっと速く、もっと安全に」。\nこのラインが動き出せば、緊急時にも必要な医薬品を遅滞なく届ける力が高まります。' },
+            { label:'G) 設備投資（安心投資）', value:'【見えない空気への投資】\nこのたび、工場の空調管理システムを最新鋭のものへ刷新しました。\n\n医薬品製造に不可欠な「空気の質」を、24時間365日コントロールするための投資です。\n「何も起きない」という当たり前を守り抜くために。' },
+            { label:'H) 検査工程の見直し', value:'【品質の砦を高く、強く】\n検査工程を見直し、新たなダブルチェック体制を導入しました。\n\n最新の自動検査機と、熟練検査員の研ぎ澄まされた「眼」。\nテクノロジーと人の技を融合させ、ヒューマンエラーを極限まで減らします。' },
+            { label:'I) 安定供給体制', value:'【「届かない」をなくすために】\nいつ、どんな時でも、薬を待つ人がいる。\nその事実に報いるため、自家発電設備の点検とBCPの見直しを行いました。\n\n災害時でも供給ラインを止めない。それが私たちの矜持です。' },
+            { label:'J) 人材育成（技術継承）', value:'【受け継がれる「光」の遺伝子】\nベテラン技術者から若手社員へ、無菌操作の技術継承研修が行われました。\n\nマニュアルには書ききれない、指先の繊細な感覚や品質への執念。\n言葉を超えた「想い」が、人から人へ受け継がれていきます。' },
+            { label:'K) 透明性（情報公開）', value:'【ガラス張りの信頼】\n品質管理に関するガイドラインを改定し、社内での共有を徹底しました。\n\n「誰が作っても、同じ高品質を」。\nプロセスの透明化は、組織としての誠実さの証です。' },
+        ];
+
+        // ④ 目的（ここが締めとCTAを切り替える主役）
+        const PURPOSES = {
+            thanks:   { label:'感謝を伝えたい',                 tag:'#感謝', close:()=>'これからも、まっすぐ、やさしく。感謝を込めて。', cta:()=>'' },
+            reassure: { label:'安心してもらいたい',             tag:'#健康', close:()=>'皆様の毎日に、そっと寄り添えるように。',        cta:()=>'' },
+            awareness:{ label:'知ってほしい・興味を持ってほしい', tag:'#発信', close:()=>'光製薬の「今」を発信しています。',            cta:(l)=>'ぜひフォローして、ご覧ください。\n🔗 '+l },
+            action:   { label:'応募・問い合わせにつなげたい',    tag:'',      close:()=>'ご興味をお持ちいただけたら、うれしいです。',    cta:(l)=>'🔗 詳しくは '+l },
+            trust:    { label:'信頼を高めたい',                 tag:'#品質', close:(a)=>a.short+'\n変わらぬ品質と誠実さを、これからも。', cta:()=>'' },
+        };
+
+        const App = () => {
+            const nowMonth = new Date().getMonth() + 1;
+            const [when, setWhen] = useState('anniversary');
+            const [audience, setAudience] = useState('general');
+            const [tmpl, setTmpl] = useState(TEMPLATES[1].value);
+            const [message, setMessage] = useState(TEMPLATES[1].value);
+            const [purpose, setPurpose] = useState('thanks');
+            const [imageId, setImageId] = useState('');
+            const [out, setOut] = useState({ main:'', x:'' });
+            const [showX, setShowX] = useState(false);
+            const [copied, setCopied] = useState('');
+            const [openSetting, setOpenSetting] = useState(false);
+
+            const [useSig, setUseSig] = useState(true);
+            const [signature, setSignature] = useState('光製薬株式会社\n公式サイト：https://www.hikari-pharma.co.jp/');
+            const [linkText, setLinkText] = useState('プロフィールのリンクへ');
+            const NG = ['絶対','100%','No.1','必ず治る','最強','圧倒的','完治','副作用ゼロ'];
+            const ngHits = NG.filter(w => message.includes(w));
+
+            const selImg = REGISTERED_IMAGES.find(i => i.id === imageId);
+            const groups = [...new Set(REGISTERED_IMAGES.map(i => i.group))];
+
+            const build = () => {
+                const a = AUDIENCES.find(x => x.v === audience);
+                const p = PURPOSES[purpose];
+                let intro = '';
+                if (when === 'season') intro = SEASON_LINE[nowMonth];
+                else if (when === 'notice') intro = '【お知らせ】';
+
+                const tags = ['#光製薬', a.tag, p.tag].filter(Boolean);
+                if (when === 'anniversary') tags.splice(1, 0, '#創業90周年');
+                const uniqueTags = [...new Set(tags)];
+
+                const sig = useSig ? '\n\n' + signature : '';
+                const mainParts = [intro, message.trim(), p.close(a), p.cta(linkText)]
+                    .filter(s => s && s.trim());
+                const main = mainParts.join('\n\n') + sig + '\n\n' + uniqueTags.join(' ');
+
+                const first = message.trim().split('\n').slice(0, 2).join('\n');
+                const x = '【光製薬】\n' + (first || a.short) + '\n\n' + a.short + '\n#光製薬 ' + a.tag;
+
+                setOut({ main, x });
+            };
+
+            useEffect(() => { build(); }, [when, audience, purpose, tmpl, imageId, useSig, signature, linkText]);
+            useEffect(() => { build(); }, []);
+
+            const onTmpl = (v) => { setTmpl(v); if (v) setMessage(v); };
+
+            const copy = (text, key) => {
+                const done = () => { setCopied(key); setTimeout(() => setCopied(''), 1800); };
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(text).then(done).catch(() => fallback(text, done));
+                } else { fallback(text, done); }
+            };
+            const fallback = (str, done) => {
+                const el = document.createElement('textarea');
+                el.value = str; el.style.position = 'fixed'; el.style.left = '-9999px';
+                document.body.appendChild(el); el.select();
+                try { document.execCommand('copy'); done(); } catch(e) { alert('コピーに失敗しました'); }
+                document.body.removeChild(el);
+            };
+
+            const Label = ({ n, children }) => (
+                <div className="flex items-center gap-2 mb-1.5">
+                    <span className="w-6 h-6 shrink-0 rounded-full bg-hikari-accent text-white text-sm font-bold flex items-center justify-center">{n}</span>
+                    <span className="font-bold text-hikari-text">{children}</span>
+                </div>
+            );
+            const sel = "w-full p-3 border border-gray-300 rounded-lg bg-white text-hikari-text focus:ring-2 focus:ring-hikari-accent outline-none";
+
+            const OutputCard = ({ title, text, ck, note }) => (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 fade">
+                    <div className="flex justify-between items-center px-4 py-3 border-b border-gray-100">
+                        <span className="font-bold text-hikari-text">{title}</span>
+                        <button onClick={() => copy(text, ck)}
+                            className={"px-4 py-1.5 rounded-lg text-sm font-bold text-white " + (copied===ck ? "bg-green-600" : "bg-hikari-accent hover:opacity-90")}>
+                            {copied===ck ? '✓ コピーしました' : '本文をコピー'}
+                        </button>
+                    </div>
+                    <pre className="p-4 whitespace-pre-wrap text-[15px] leading-relaxed text-gray-800 font-sans">{text}</pre>
+                    {note && <div className="px-4 pb-3">{note}</div>}
+                </div>
+            );
+
+            return (
+                <div className="max-w-xl mx-auto p-4 pb-16">
+                    <header className="text-center mb-5">
+                        <h1 className="text-2xl font-bold text-hikari-text">HIKARI Brand Note</h1>
+                        <p className="text-sm text-gray-500 mt-1">承認された画像と表現で、迷わず1分投稿。</p>
+                    </header>
+
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 space-y-5">
+                        <div>
+                            <Label n="1">いつの投稿？</Label>
+                            <select className={sel} value={when} onChange={e=>setWhen(e.target.value)}>
+                                {WHENS.map(w => <option key={w.v} value={w.v}>{w.label}</option>)}
+                            </select>
+                        </div>
+
+                        <div>
+                            <Label n="2">だれに伝える？</Label>
+                            <select className={sel} value={audience} onChange={e=>setAudience(e.target.value)}>
+                                {AUDIENCES.map(a => <option key={a.v} value={a.v}>{a.label}</option>)}
+                            </select>
+                        </div>
+
+                        <div>
+                            <Label n="3">なにを伝える？</Label>
+                            <select className={sel + " mb-2"} value={tmpl} onChange={e=>onTmpl(e.target.value)}>
+                                {TEMPLATES.map((t,i) => <option key={i} value={t.value}>{t.label}</option>)}
+                            </select>
+                            <textarea className={sel + " h-32 resize-none"} value={message}
+                                onChange={e=>setMessage(e.target.value)}
+                                placeholder="例：今日は工場見学がありました。（1行でもOK）" />
+                            {ngHits.length > 0 &&
+                                <div className="mt-2 text-sm bg-red-50 border border-red-200 text-red-700 rounded-lg p-3">
+                                    ⚠️ 表現に注意：「{ngHits.join('」「')}」が含まれています。<br/>
+                                    <span className="text-xs">薬機法・景表法の観点から、言い切り表現は避けるのがおすすめです。</span>
+                                </div>}
+                        </div>
+
+                        <div>
+                            <Label n="4">どんな目的で？</Label>
+                            <select className={sel} value={purpose} onChange={e=>setPurpose(e.target.value)}>
+                                {Object.keys(PURPOSES).map(k => <option key={k} value={k}>{PURPOSES[k].label}</option>)}
+                            </select>
+                            <p className="text-xs text-gray-400 mt-1">※目的にあわせて、締めの言葉と案内が自動で変わります。</p>
+                        </div>
+
+                        <div className="pt-1 border-t border-gray-100">
+                            <div className="flex items-center gap-2 mb-1.5 mt-3">
+                                <span className="font-bold text-hikari-text">投稿に添える画像</span>
+                                <span className="text-[11px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">社内サーバー登録画像のみ</span>
+                            </div>
+                            <select className={sel} value={imageId} onChange={e=>setImageId(e.target.value)}>
+                                <option value="">画像なし</option>
+                                {groups.map(g => (
+                                    <optgroup key={g} label={g}>
+                                        {REGISTERED_IMAGES.filter(i=>i.group===g).map(i =>
+                                            <option key={i.id} value={i.id}>{i.name}</option>)}
+                                    </optgroup>
+                                ))}
+                            </select>
+                            {selImg &&
+                                <div className="mt-2 flex items-center gap-3 bg-hikari-base rounded-lg p-2 fade">
+                                    <img src={selImg.url} alt="" className="w-20 h-14 object-cover rounded border border-gray-200" />
+                                    <div className="text-sm text-hikari-text">
+                                        <div className="font-bold">{selImg.name}</div>
+                                        <div className="text-xs text-gray-500">{selImg.group}／社内サーバー登録画像</div>
+                                    </div>
+                                </div>}
+                            <p className="text-[11px] text-gray-400 mt-1.5">
+                                ※外部URLの貼り付け・端末からのアップロードはできません。承認済み画像だけを掲載できます。
+                            </p>
+                        </div>
+
+                        <button onClick={build}
+                            className="w-full py-3.5 rounded-xl bg-hikari-accent text-white font-bold text-lg shadow-sm hover:opacity-90">
+                            投稿文をつくる
+                        </button>
+                    </div>
+
+                    <div className="mt-5 space-y-3">
+                        <OutputCard title="投稿文（Instagram／Facebook 兼用）" text={out.main} ck="main"
+                            note={selImg &&
+                                <div className="text-sm bg-hikari-base rounded-lg px-3 py-2 text-hikari-text">
+                                    📎 添える画像：<span className="font-bold">{selImg.name}</span>（社内サーバー登録画像）
+                                </div>} />
+
+                        {!showX
+                            ? <button onClick={()=>setShowX(true)}
+                                className="w-full py-2.5 rounded-lg border border-gray-300 bg-white text-hikari-text text-sm font-bold hover:bg-gray-50">
+                                X（旧Twitter）用の短い版も表示する</button>
+                            : <OutputCard title="X（旧Twitter）用・短縮版" text={out.x} ck="x" />}
+                    </div>
+
+                    <div className="mt-5">
+                        <button onClick={()=>setOpenSetting(!openSetting)}
+                            className="text-sm text-gray-500 underline">
+                            {openSetting ? '▲ はじめの設定を閉じる' : '▼ はじめの設定（署名・リンク・1回だけ）'}
+                        </button>
+                        {openSetting &&
+                            <div className="mt-2 bg-white rounded-xl border border-gray-200 p-4 space-y-4 fade">
+                                <label className="flex items-center gap-2 text-sm font-bold text-hikari-text">
+                                    <input type="checkbox" checked={useSig} onChange={e=>setUseSig(e.target.checked)} />
+                                    署名（フッター）を入れる
+                                </label>
+                                <textarea className={sel + " h-20 resize-none text-sm"} value={signature}
+                                    onChange={e=>setSignature(e.target.value)} />
+                                <div>
+                                    <label className="text-sm font-bold text-hikari-text block mb-1">リンクの案内文</label>
+                                    <input className={sel + " text-sm"} value={linkText}
+                                        onChange={e=>setLinkText(e.target.value)} />
+                                </div>
+                            </div>}
+                    </div>
+
+                    <p className="text-center text-[11px] text-gray-400 mt-8">HIKARI Brand Note ／ 考えるを、ひとりにしない。</p>
+                </div>
+            );
+        };
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>
